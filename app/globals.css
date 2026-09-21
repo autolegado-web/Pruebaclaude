@@ -1,0 +1,275 @@
+@import "tailwindcss";
+
+/* ============================================================
+   AUTORA · Sistema de diseño
+   Un solo acento funcional, cero decoración.
+   La única "boldness" del producto es la fotografía a sangre.
+   ============================================================ */
+
+@theme {
+  /* — Color ————————————————————————————— */
+  --color-paper: #ffffff;
+  --color-bone: #f4f3f1;
+  --color-ash: #eceae7;
+  --color-line: #e2e0dc;
+  /* Borde con suficiente contraste (≥3:1, WCAG 1.4.11) para que el límite
+     de un campo interactivo se distinga del fondo sin depender del foco. */
+  --color-line-strong: #8c8a86;
+  --color-steel: #a0a0a0;
+  --color-graphite: #6c6c6c;
+  --color-ink: #000000;
+  --color-night: #000000;
+
+  /* Señales funcionales (nunca decorativas) */
+  --color-pulse: #2440ff;
+  --color-verified: #0b5d3b;
+  --color-alert: #b42318;
+
+  /* — Radios ———————————————————————————— */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* — Tipografía ———————————————————————— */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+
+  /* — Movimiento ———————————————————————— */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+
+  /* — Layout ———————————————————————————— */
+  --spacing-gutter: 1.25rem;
+  --container-page: 1512px;
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--color-line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11", "calt";
+  }
+
+  /* Cifras siempre alineadas: precios, km, potencia */
+  [data-numeric],
+  table,
+  time {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-pulse);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+
+  /* Scrollbar discreta en superficies oscuras */
+  .dark-surface {
+    color-scheme: dark;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ============================================================
+   Utilidades de composición
+   ============================================================ */
+
+@utility page {
+  width: 100%;
+  margin-inline: auto;
+  max-width: var(--container-page);
+  padding-inline: 1.25rem;
+  @media (width >= 48rem) {
+    padding-inline: 2.5rem;
+  }
+  @media (width >= 80rem) {
+    padding-inline: 3.5rem;
+  }
+}
+
+/* Escala tipográfica: el contraste lo hace el tamaño y el tracking,
+   no el color ni el peso extremo. */
+@utility display-xl {
+  font-size: clamp(2.75rem, 8.5vw, 7rem);
+  line-height: 0.92;
+  letter-spacing: -0.045em;
+  font-weight: 500;
+}
+
+@utility display-lg {
+  font-size: clamp(2.125rem, 5.4vw, 4.25rem);
+  line-height: 0.98;
+  letter-spacing: -0.038em;
+  font-weight: 500;
+}
+
+@utility display-md {
+  font-size: clamp(1.625rem, 3.2vw, 2.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 500;
+}
+
+@utility display-sm {
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  line-height: 1.15;
+  letter-spacing: -0.022em;
+  font-weight: 500;
+}
+
+@utility lede {
+  font-size: clamp(1rem, 1.4vw, 1.125rem);
+  line-height: 1.5;
+  letter-spacing: -0.012em;
+  color: var(--color-graphite);
+  max-width: 46ch;
+}
+
+@utility meta {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  color: var(--color-graphite);
+}
+
+/* Regla fina que se usa como estructura, no como adorno */
+@utility rule {
+  border-top: 1px solid var(--color-line);
+}
+
+/* Scrim fotográfico: la única "gradiente" del sistema y solo
+   existe para que el texto sea legible sobre imagen. */
+@utility scrim {
+  background: linear-gradient(
+    to top,
+    rgb(0 0 0 / 0.78) 0%,
+    rgb(0 0 0 / 0.45) 32%,
+    rgb(0 0 0 / 0.08) 62%,
+    rgb(0 0 0 / 0) 100%
+  );
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Entrada orquestada del hero (un solo momento en toda la home) */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility rise {
+  animation: rise 0.9s var(--ease-out-quint) both;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@utility skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-ash);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(255 255 255 / 0.65),
+      transparent
+    );
+    animation: shimmer 1.4s infinite;
+  }
+}
+
+/* ============================================================
+   Superposiciones (drawer, modal, toast)
+   La animación responde siempre a una acción del usuario.
+   ============================================================ */
+
+@keyframes overlay-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes overlay-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes slide-left-in { from { transform: translate3d(-100%,0,0) } to { transform: none } }
+@keyframes slide-left-out { from { transform: none } to { transform: translate3d(-100%,0,0) } }
+@keyframes slide-right-in { from { transform: translate3d(100%,0,0) } to { transform: none } }
+@keyframes slide-right-out { from { transform: none } to { transform: translate3d(100%,0,0) } }
+@keyframes slide-bottom-in { from { transform: translate3d(0,100%,0) } to { transform: none } }
+@keyframes slide-bottom-out { from { transform: none } to { transform: translate3d(0,100%,0) } }
+@keyframes pop-in { from { opacity: 0; transform: scale(.97) translate3d(0,8px,0) } to { opacity: 1; transform: none } }
+@keyframes pop-out { from { opacity: 1; transform: none } to { opacity: 0; transform: scale(.98) }}
+@keyframes toast-in { from { opacity: 0; transform: translate3d(0,14px,0) } to { opacity: 1; transform: none } }
+@keyframes accordion-down { from { height: 0 } to { height: var(--radix-accordion-content-height) } }
+@keyframes accordion-up { from { height: var(--radix-accordion-content-height) } to { height: 0 } }
+
+@utility overlay-anim {
+  &[data-state="open"] { animation: overlay-in .22s var(--ease-out-quint) }
+  &[data-state="closed"] { animation: overlay-out .18s var(--ease-in-out-quart) }
+}
+@utility panel-left {
+  &[data-state="open"] { animation: slide-left-in .32s var(--ease-out-quint) }
+  &[data-state="closed"] { animation: slide-left-out .24s var(--ease-in-out-quart) }
+}
+@utility panel-right {
+  &[data-state="open"] { animation: slide-right-in .32s var(--ease-out-quint) }
+  &[data-state="closed"] { animation: slide-right-out .24s var(--ease-in-out-quart) }
+}
+@utility panel-bottom {
+  &[data-state="open"] { animation: slide-bottom-in .32s var(--ease-out-quint) }
+  &[data-state="closed"] { animation: slide-bottom-out .24s var(--ease-in-out-quart) }
+}
+@utility panel-center {
+  &[data-state="open"] { animation: pop-in .26s var(--ease-out-quint) }
+  &[data-state="closed"] { animation: pop-out .18s var(--ease-in-out-quart) }
+}
+@utility toast-anim { animation: toast-in .28s var(--ease-out-quint) }
