@@ -110,9 +110,9 @@ export interface Database {
       inquiries: {
         Row: {
           id: string;
-          car_id: string;
+          car_id: string | null;
           user_id: string | null;
-          kind: "info" | "comprar" | "reservar";
+          kind: "info" | "comprar" | "reservar" | "general";
           name: string;
           email: string;
           phone: string | null;
@@ -121,8 +121,7 @@ export interface Database {
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["inquiries"]["Row"]> & {
-          car_id: string;
-          kind: "info" | "comprar" | "reservar";
+          kind: "info" | "comprar" | "reservar" | "general";
           name: string;
           email: string;
         };

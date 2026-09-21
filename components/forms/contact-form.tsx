@@ -4,12 +4,14 @@ import { useState, type FormEvent } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
-import { useToasts } from "@/app/providers";
+import { useAuth, useToasts } from "@/app/providers";
+import { isSupabaseConfigured } from "@/lib/supabase/is-configured";
 
 type Status = "idle" | "loading" | "done";
 
 export function ContactForm() {
   const { notify } = useToasts();
+  const { session } = useAuth();
   const [status, setStatus] = useState<Status>("idle");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -30,7 +32,30 @@ export function ContactForm() {
     }
 
     setStatus("loading");
-    await new Promise((r) => setTimeout(r, 800)); // ← aquí irá supabase.from("inquiries").insert(...)
+
+    if (isSupabaseConfigured()) {
+      const { createClient } = await import("@/lib/supabase/client");
+      const { error } = await createClient()
+        .from("inquiries")
+        .insert({
+          car_id: null,
+          user_id: session?.id ?? null,
+          kind: "general",
+          name: String(data.get("name")),
+          email,
+          message: String(data.get("message")),
+        });
+      setStatus("idle");
+      if (error) {
+        notify("No se pudo enviar el mensaje. Inténtalo de nuevo.", { tone: "error" });
+        return;
+      }
+      setStatus("done");
+      notify("Mensaje enviado.");
+      return;
+    }
+
+    await new Promise((r) => setTimeout(r, 800));
     setStatus("done");
     notify("Mensaje enviado.");
   };

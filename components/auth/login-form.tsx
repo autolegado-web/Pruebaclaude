@@ -6,6 +6,12 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
+import { isSupabaseConfigured } from "@/lib/supabase/is-configured";
+
+const ERROR_ES: Record<string, string> = {
+  "Invalid login credentials": "Email o contraseña incorrectos.",
+  "Email not confirmed": "Confirma tu email antes de iniciar sesión (revisa tu bandeja de entrada).",
+};
 
 export function LoginForm() {
   const { signIn } = useAuth();
@@ -23,8 +29,20 @@ export function LoginForm() {
 
     setError(null);
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 700)); // ← aquí irá supabase.auth.signInWithPassword(...)
+
+    if (isSupabaseConfigured()) {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (authError) return setError(ERROR_ES[authError.message] ?? authError.message);
+      router.push("/cuenta");
+      return;
+    }
+
+    await new Promise((r) => setTimeout(r, 700));
     signIn({ name: email.split("@")[0], email });
+    setLoading(false);
     router.push("/cuenta");
   };
 

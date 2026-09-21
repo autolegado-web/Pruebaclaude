@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { RegisterForm } from "@/components/auth/register-form";
+import { isSupabaseConfigured } from "@/lib/supabase/is-configured";
 
 export const metadata: Metadata = {
   title: "Crear cuenta",
@@ -17,9 +18,11 @@ export default function RegisterPage() {
         <div className="mt-9">
           <RegisterForm />
         </div>
-        <p className="meta mt-8 text-center">
-          Sesión de demostración: no se envían credenciales a ningún servidor todavía.
-        </p>
+        {!isSupabaseConfigured() && (
+          <p className="meta mt-8 text-center">
+            Sesión de demostración: no se envían credenciales a ningún servidor todavía.
+          </p>
+        )}
       </div>
     </div>
   );

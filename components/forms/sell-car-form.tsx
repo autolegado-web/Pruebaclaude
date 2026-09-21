@@ -4,8 +4,9 @@ import { useState, type FormEvent } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
-import { useToasts } from "@/app/providers";
+import { useAuth, useToasts } from "@/app/providers";
 import { brands } from "@/data/cars";
+import { isSupabaseConfigured } from "@/lib/supabase/is-configured";
 
 const FUELS = ["Gasolina", "Diésel", "Híbrido", "Híbrido enchufable", "Eléctrico"];
 const TRANSMISSIONS = ["Manual", "Automático"];
@@ -14,6 +15,7 @@ type Status = "idle" | "loading" | "done";
 
 export function SellCarForm() {
   const { notify } = useToasts();
+  const { session } = useAuth();
   const [status, setStatus] = useState<Status>("idle");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -35,7 +37,38 @@ export function SellCarForm() {
     }
 
     setStatus("loading");
-    await new Promise((r) => setTimeout(r, 900)); // ← aquí irá supabase.from("sell_requests").insert(...)
+
+    if (isSupabaseConfigured()) {
+      const { createClient } = await import("@/lib/supabase/client");
+      const { error } = await createClient()
+        .from("sell_requests")
+        .insert({
+          user_id: session?.id ?? null,
+          brand: String(data.get("brand")),
+          model: String(data.get("model")),
+          version: String(data.get("version") || "") || null,
+          year: Number(data.get("year")),
+          mileage: Number(data.get("km")),
+          plate: String(data.get("plate") || "") || null,
+          fuel: String(data.get("fuel")),
+          transmission: String(data.get("transmission")),
+          condition: String(data.get("state") || "Buen estado"),
+          notes: String(data.get("notes") || "") || null,
+          contact_name: String(data.get("name")),
+          contact_email: email,
+          contact_phone: String(data.get("phone") || "") || null,
+        });
+      setStatus("idle");
+      if (error) {
+        notify("No se pudo enviar la solicitud. Inténtalo de nuevo.", { tone: "error" });
+        return;
+      }
+      setStatus("done");
+      notify("Solicitud de valoración enviada.");
+      return;
+    }
+
+    await new Promise((r) => setTimeout(r, 900));
     setStatus("done");
     notify("Solicitud de valoración enviada.");
   };
@@ -47,10 +80,7 @@ export function SellCarForm() {
           <Check aria-hidden className="h-5 w-5" />
         </span>
         <h2 className="display-sm">Solicitud recibida</h2>
-        <p className="lede">
-          Te responderemos en menos de 24 horas laborables. Este prototipo no envía nada todavía: el
-          formulario está listo para conectarse a Supabase.
-        </p>
+        <p className="lede">Te responderemos en menos de 24 horas laborables.</p>
       </div>
     );
   }

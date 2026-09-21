@@ -10,12 +10,15 @@ import {
   type ReactNode,
 } from "react";
 import type { CarFilters } from "@/types/car";
+import { isSupabaseConfigured } from "@/lib/supabase/is-configured";
 
 /* ------------------------------------------------------------------ */
 /* Capa de persistencia                                                */
 /*                                                                     */
-/* Hoy: localStorage. Mañana: Supabase.                                */
-/* Todo lo que hay que cambiar está en lib/store.ts + estos providers. */
+/* Sin Supabase configurado: todo vive en localStorage (modo demo).    */
+/* Con Supabase configurado: sesión y favoritos usan la base real;     */
+/* búsquedas guardadas se quedan en localStorage por ahora (ver         */
+/* README, Fase C) y lo mismo el resto del alcance de saved_searches.  */
 /* ------------------------------------------------------------------ */
 
 const KEYS = {
@@ -93,6 +96,8 @@ const SearchesCtx = createContext<SearchesContext | null>(null);
 /* ------------------------------ Sesión ---------------------------- */
 
 export interface Session {
+  /** uuid de Supabase. Ausente en la sesión de demostración (sin Supabase). */
+  id?: string;
   name: string;
   email: string;
 }
@@ -100,6 +105,9 @@ export interface Session {
 interface AuthContext {
   session: Session | null;
   ready: boolean;
+  /** Sesión de demostración (sin Supabase configurado). Con Supabase, el
+   * inicio de sesión real lo hacen LoginForm/RegisterForm contra
+   * supabase.auth; esta función queda como no-op en ese caso. */
   signIn: (session: Session) => void;
   signOut: () => void;
 }
@@ -109,24 +117,12 @@ const AuthCtx = createContext<AuthContext | null>(null);
 /* ---------------------------- Provider ---------------------------- */
 
 export function Providers({ children }: { children: ReactNode }) {
+  const supabaseOn = isSupabaseConfigured();
   const [ready, setReady] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [searches, setSearches] = useState<SavedSearch[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
-
-  // Lee localStorage una sola vez tras montar. No puede ir en el render (el
-  // servidor no tiene localStorage) ni en un useState perezoso (el primer
-  // render de cliente tiene que coincidir con el del servidor para evitar
-  // un error de hidratación); `ready` distingue "aún no hidratado" para
-  // quien lo necesite.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hidratación única desde localStorage, ver comentario arriba
-    setFavorites(read<string[]>(KEYS.favorites, []));
-    setSearches(read<SavedSearch[]>(KEYS.searches, []));
-    setSession(read<Session | null>(KEYS.session, null));
-    setReady(true);
-  }, []);
 
   const dismiss = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -141,21 +137,96 @@ export function Providers({ children }: { children: ReactNode }) {
     [dismiss],
   );
 
+  // Hidratación inicial. Sin Supabase: lee localStorage una vez. Con
+  // Supabase: resuelve la sesión real y se suscribe a sus cambios; los
+  // favoritos de esa sesión se cargan aparte, en el efecto siguiente.
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!supabaseOn) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hidratación única desde localStorage (modo sin Supabase)
+      setFavorites(read<string[]>(KEYS.favorites, []));
+      setSearches(read<SavedSearch[]>(KEYS.searches, []));
+      setSession(read<Session | null>(KEYS.session, null));
+      setReady(true);
+      return;
+    }
+
+    setSearches(read<SavedSearch[]>(KEYS.searches, []));
+
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      if (cancelled) return;
+      const supabase = createClient();
+
+      const toSession = (user: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null): Session | null =>
+        user
+          ? {
+              id: user.id,
+              email: user.email ?? "",
+              name: (user.user_metadata?.full_name as string | undefined) || (user.email?.split("@")[0] ?? "Cuenta"),
+            }
+          : null;
+
+      supabase.auth.getSession().then(({ data }) => {
+        if (cancelled) return;
+        setSession(toSession(data.session?.user ?? null));
+        setReady(true);
+      });
+
+      const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+        setSession(toSession(newSession?.user ?? null));
+      });
+
+      return () => sub.subscription.unsubscribe();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo debe ejecutarse una vez, al montar
+  }, []);
+
+  // Favoritos: con Supabase y sesión real, viven en la tabla `favorites`.
+  // Sin sesión (o sin Supabase configurado), quedan en localStorage.
+  useEffect(() => {
+    if (!supabaseOn || !session?.id) return;
+    let cancelled = false;
+    import("@/lib/supabase/favorites").then(({ listFavoriteIds }) => {
+      listFavoriteIds(session.id!)
+        .then((ids) => {
+          if (!cancelled) setFavorites(ids);
+        })
+        .catch(() => notify("No se pudieron cargar tus favoritos.", { tone: "error" }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabaseOn, session?.id, notify]);
+
   const toggle = useCallback<FavoritesContext["toggle"]>(
     (id, label) => {
-      setFavorites((prev) => {
-        const next = prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id];
+      const wasFavorite = favorites.includes(id);
+      const next = wasFavorite ? favorites.filter((f) => f !== id) : [...favorites, id];
+      setFavorites(next);
+      notify(
+        wasFavorite ? `${label ?? "Coche"} eliminado de favoritos` : `${label ?? "Coche"} guardado en favoritos`,
+        wasFavorite ? undefined : { action: { label: "Ver favoritos", href: "/favoritos" } },
+      );
+
+      if (supabaseOn && session?.id) {
+        const userId = session.id;
+        import("@/lib/supabase/favorites").then(({ addFavorite, removeFavorite }) => {
+          const op = wasFavorite ? removeFavorite(userId, id) : addFavorite(userId, id);
+          op.catch(() => {
+            setFavorites(favorites); // revierte el cambio optimista si falla
+            notify("No se pudo guardar el cambio. Inténtalo de nuevo.", { tone: "error" });
+          });
+        });
+      } else {
         write(KEYS.favorites, next);
-        notify(
-          prev.includes(id)
-            ? `${label ?? "Coche"} eliminado de favoritos`
-            : `${label ?? "Coche"} guardado en favoritos`,
-          prev.includes(id) ? undefined : { action: { label: "Ver favoritos", href: "/favoritos" } },
-        );
-        return next;
-      });
+      }
     },
-    [notify],
+    [favorites, notify, supabaseOn, session],
   );
 
   const save = useCallback<SearchesContext["save"]>(
@@ -185,18 +256,23 @@ export function Providers({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(
     (value: Session) => {
+      if (supabaseOn) return; // con Supabase, el login real lo hace LoginForm/RegisterForm
       setSession(value);
       write(KEYS.session, value);
       notify(`Sesión iniciada como ${value.name}`);
     },
-    [notify],
+    [notify, supabaseOn],
   );
 
   const signOut = useCallback(() => {
-    setSession(null);
-    write(KEYS.session, null);
+    if (supabaseOn) {
+      import("@/lib/supabase/client").then(({ createClient }) => createClient().auth.signOut());
+    } else {
+      setSession(null);
+      write(KEYS.session, null);
+    }
     notify("Sesión cerrada");
-  }, [notify]);
+  }, [notify, supabaseOn]);
 
   const favoritesValue = useMemo<FavoritesContext>(
     () => ({ favorites, ready, isFavorite: (id) => favorites.includes(id), toggle }),
